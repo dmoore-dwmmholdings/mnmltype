@@ -141,7 +141,14 @@ test('live WPM tag follows the caret and can be switched off', async ({ page }) 
   expect(tagBox.y).toBeGreaterThan(caretBox.y + caretBox.height - 1);
   expect(Math.abs(tagBox.x - caretBox.x)).toBeLessThan(40);
 
+  await expect(tag).toHaveAttribute('data-pace', /peak|up|down/);
+  await expect(page.locator('.app')).toHaveClass(/pace-colors/);
+
   await page.locator('#view-toggle').click();
+  const pc = page.locator('#view-menu [data-pace-colors]');
+  await pc.click();
+  await expect(pc).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.app')).not.toHaveClass(/pace-colors/);
   const sw = page.locator('#view-menu [data-cursor-wpm]');
   await expect(sw).toHaveAttribute('aria-pressed', 'true');
   await sw.click();

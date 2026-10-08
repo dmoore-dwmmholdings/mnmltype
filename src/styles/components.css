@@ -141,7 +141,14 @@
   transition: transform 90ms cubic-bezier(.2, .8, .2, 1), opacity var(--dur) ease;
 }
 .app.show-tag .wpm-tag { display: inline-flex; }
-.wpm-tag-v { font-variant-numeric: tabular-nums; }
+.wpm-tag-v { font-variant-numeric: tabular-nums; transition: color var(--dur) ease; }
+.wpm-tag-dir { display: none; font-size: 8px; line-height: 1; align-self: center; }
+/* Pace colours: blue at/near peak (default), green rising, red falling. */
+.app.pace-colors .wpm-tag[data-pace="up"] .wpm-tag-dir,
+.app.pace-colors .wpm-tag[data-pace="down"] .wpm-tag-dir { display: inline; }
+.app.pace-colors .wpm-tag[data-pace="up"] { color: var(--good); }
+.app.pace-colors .wpm-tag[data-pace="down"] { color: var(--warn); }
+.wpm-tag { transition: transform 90ms cubic-bezier(.2, .8, .2, 1), opacity var(--dur) ease, color var(--dur) ease; }
 .wpm-tag-k { color: var(--text-dim); font-weight: 400; }
 .wpm-tag.is-idle { opacity: .45; }
 .wpm-tag.is-empty, .wpm-tag.is-away, .app:not(.is-focused) .wpm-tag { opacity: 0; }

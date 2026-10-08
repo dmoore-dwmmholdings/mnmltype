@@ -10,7 +10,8 @@
   --blue-bright: #6FA8FF;   /* highlights, glow core */
   --blue-deep:   #0B2A66;   /* glow falloff */
   --blue-glow:   rgba(47,123,255,.35);
-  --warn:        #FF5A6E;   /* only for a correction-rate spike flash */
+  --warn:        #FF5A6E;   /* correction flash; pace colours: falling */
+  --good:        #3DDC97;   /* pace colours: rising */
   --on-blue:     #020814;   /* text on solid --blue (brand segment) */
 
   --font-ui:   "Inter", system-ui, sans-serif;

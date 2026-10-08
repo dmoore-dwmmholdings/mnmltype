@@ -8,6 +8,7 @@ import './styles/base.css';
 import './styles/components.css';
 
 import { appendEvent, computeContent, createLog, speedFromLog } from './engine/stats';
+import { pace, type Pace } from './engine/pace';
 import { createTracker } from './engine/tracker';
 import type { ContentStats, Stats } from './engine/types';
 import { Ambient } from './ui/ambient';
@@ -41,6 +42,8 @@ const caret = new BlockCaret(editor, $('.caret'), tag);
 const tagValue = tag.querySelector('.wpm-tag-v')!;
 const TAG_MS = 500; // plain text, refreshed twice a second so it reads at a glance
 let lastTag = -Infinity;
+let tagPace: Pace | null = null;
+const tagDir = tag.querySelector('.wpm-tag-dir')!;
 const phone = matchMedia('(max-width: 639px)');
 
 const LARGE_TEXT = 20_000;
@@ -100,6 +103,15 @@ function render(now: number): void {
     lastTag = now;
     const resized = tagText.length !== (tagValue.textContent ?? '').length;
     tagValue.textContent = tagText;
+    // Pace: blue near the peak, otherwise green rising / red falling vs ~1 s ago.
+    const ref = stats.wpmSeries.at(-2) ?? null;
+    const p = pace(stats.wpmLive, stats.wpmPeak, ref, tagPace);
+    if (p !== tagPace) {
+      tagPace = p;
+      if (p) tag.dataset.pace = p;
+      else delete tag.dataset.pace;
+      tagDir.textContent = p === 'up' ? '▲' : p === 'down' ? '▼' : '';
+    }
     tag.classList.toggle('is-empty', !tagText);
     if (resized) caret.schedule();
   }
@@ -297,6 +309,19 @@ document.addEventListener('pointerdown', (e) => {
 const saved = store.get('width');
 setWidth(WIDTHS.includes(saved as Width) ? (saved as Width) : 'full', false);
 setCursorWpm(store.get('cursorWpm') !== '0');
+
+function setPaceColors(on: boolean): void {
+  app.classList.toggle('pace-colors', on);
+  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-pace-colors]')) {
+    b.setAttribute('aria-pressed', String(on));
+  }
+  store.set('paceColors', on ? '1' : '0');
+  caret.schedule(); // the arrow changes the tag's width
+}
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-pace-colors]')) {
+  b.addEventListener('click', () => setPaceColors(b.getAttribute('aria-pressed') !== 'true'));
+}
+setPaceColors(store.get('paceColors') !== '0');
 
 // ---- Stats drawer (desktop/tablet) and bottom sheet (phone) ----------------
 
