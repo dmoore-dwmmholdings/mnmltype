@@ -2,10 +2,6 @@
 import { reducedMotion } from '../util/raf';
 
 const NS = 'http://www.w3.org/2000/svg';
-const W = 288;
-const PW = W - 8; // plot width; leaves room for the dot's halo
-const H = 64;
-const PAD_TOP = 8;
 const SLOTS = 60;
 const MIN_SPAN = 10; // early in a session, stretch the few samples over at least this many slots
 const SLIDE_MS = 700;
@@ -17,6 +13,9 @@ const svg = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string,
 };
 
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 4);
+
+export type SparkOpts = { width?: number; height?: number; padTop?: number; dotRoom?: number; className?: string };
+let instances = 0;
 
 export class Sparkline {
   readonly el: SVGSVGElement;
@@ -30,28 +29,39 @@ export class Sparkline {
   private scale = 60;
   private span = MIN_SPAN;
 
-  constructor() {
+  private readonly W: number;
+  private readonly H: number;
+  private readonly PW: number; // plot width; leaves room for the dot
+  private readonly PAD_TOP: number;
+
+  constructor(opts: SparkOpts = {}) {
+    const { width = 288, height = 64, padTop = 8, className = '' } = opts;
+    this.W = width;
+    this.H = height;
+    this.PW = width - (opts.dotRoom ?? 8);
+    this.PAD_TOP = padTop;
+    const uid = ++instances;
     this.el = svg('svg', {
-      class: 'spark',
-      viewBox: `0 0 ${W} ${H}`,
+      class: `spark ${className}`.trim(),
+      viewBox: `0 0 ${this.W} ${this.H}`,
       'aria-hidden': 'true',
       focusable: 'false',
     });
     const defs = svg('defs', {});
-    const grad = svg('linearGradient', { id: 'spark-fill', x1: '0', y1: '0', x2: '0', y2: '1' });
+    const grad = svg('linearGradient', { id: `spark-fill-${uid}`, x1: '0', y1: '0', x2: '0', y2: '1' });
     grad.append(
       svg('stop', { offset: '0', class: 'spark-stop-a' }),
       svg('stop', { offset: '1', class: 'spark-stop-b' }),
     );
-    const clip = svg('clipPath', { id: 'spark-clip' });
-    clip.append(svg('rect', { x: '0', y: '-8', width: `${PW}`, height: `${H + 16}` }));
+    const clip = svg('clipPath', { id: `spark-clip-${uid}` });
+    clip.append(svg('rect', { x: '0', y: '-8', width: `${this.PW}`, height: `${this.H + 16}` }));
     defs.append(grad, clip);
-    const plot = svg('g', { 'clip-path': 'url(#spark-clip)' });
-    this.area = svg('path', { class: 'spark-area', fill: 'url(#spark-fill)' });
+    const plot = svg('g', { 'clip-path': `url(#spark-clip-${uid})` });
+    this.area = svg('path', { class: 'spark-area', fill: `url(#spark-fill-${uid})` });
     this.line = svg('path', { class: 'spark-line' });
     this.dot = svg('g', { class: 'spark-dot' });
     this.dot.append(svg('circle', { class: 'spark-halo', r: '6' }), svg('circle', { class: 'spark-core', r: '2.5' }));
-    const base = svg('line', { class: 'spark-base', x1: '0', x2: `${W}`, y1: `${H - 0.5}`, y2: `${H - 0.5}` });
+    const base = svg('line', { class: 'spark-base', x1: '0', x2: `${this.W}`, y1: `${this.H - 0.5}`, y2: `${this.H - 0.5}` });
     plot.append(this.area, this.line);
     this.el.append(defs, base, plot, this.dot);
     this.draw(0);
@@ -116,23 +126,23 @@ export class Sparkline {
     const v = this.shown;
     const n = v.length;
     if (n < 2) {
-      const y = H - 0.5;
-      this.line.setAttribute('d', `M0 ${y}H${PW}`);
+      const y = this.H - 0.5;
+      this.line.setAttribute('d', `M0 ${y}H${this.PW}`);
       this.area.setAttribute('d', '');
-      this.dot.setAttribute('transform', `translate(${PW} ${y})`);
+      this.dot.setAttribute('transform', `translate(${this.PW} ${y})`);
       this.dot.style.opacity = n ? '1' : '0';
       this.dot.classList.toggle('is-hidden', !n);
       this.el.classList.toggle('is-empty', !n);
       return;
     }
-    const usable = H - PAD_TOP - 1;
-    const dx = PW / this.span;
+    const usable = this.H - this.PAD_TOP - 1;
+    const dx = this.PW / this.span;
     const pts: [number, number][] = v.map((val, i) => [
-      PW - (n - 1 - i - offset) * dx,
-      H - 1 - (Math.max(0, val) / this.scale) * usable,
+      this.PW - (n - 1 - i - offset) * dx,
+      this.H - 1 - (Math.max(0, val) / this.scale) * usable,
     ]);
     // Ease in from the baseline instead of starting with a vertical wall of fill.
-    if (n < SLOTS) pts.unshift([pts[0]![0] - dx, H - 1]);
+    if (n < SLOTS) pts.unshift([pts[0]![0] - dx, this.H - 1]);
     // Catmull-Rom -> cubic Bézier for a smooth curve.
     const m = pts.length;
     let d = `M${pts[0]![0].toFixed(1)} ${pts[0]![1].toFixed(1)}`;
@@ -149,8 +159,8 @@ export class Sparkline {
     }
     this.line.setAttribute('d', d);
     const lastPt = pts[m - 1]!;
-    this.area.setAttribute('d', `${d}L${lastPt[0].toFixed(1)} ${H}L${pts[0]![0].toFixed(1)} ${H}Z`);
-    this.dot.setAttribute('transform', `translate(${Math.min(lastPt[0], PW).toFixed(1)} ${lastPt[1].toFixed(1)})`);
+    this.area.setAttribute('d', `${d}L${lastPt[0].toFixed(1)} ${this.H}L${pts[0]![0].toFixed(1)} ${this.H}Z`);
+    this.dot.setAttribute('transform', `translate(${Math.min(lastPt[0], this.PW).toFixed(1)} ${lastPt[1].toFixed(1)})`);
     this.dot.style.opacity = '1';
     this.dot.classList.remove('is-hidden');
     this.el.classList.remove('is-empty');

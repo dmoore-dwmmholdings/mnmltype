@@ -12,23 +12,11 @@
   <body>
     <div class="ambient" aria-hidden="true"><div class="ambient-core"></div></div>
 
-    <div class="app">
-      <header class="hdr">
-        <h1 class="mark">mnml<span class="mark-dot">.</span>type</h1>
-        <div class="hdr-r">
-          <span class="pill"><span class="pill-v"></span><span class="pill-k">wpm</span></span>
-          <button class="btn" id="reset" type="button">Reset</button>
-        </div>
-        <span class="focus-line" aria-hidden="true"></span>
-      </header>
+    <div class="app" data-width="full">
+      <h1 class="sr-only">mnmltype: live typing statistics</h1>
 
       <main class="main">
-        <div class="editor-wrap">
-          <div class="editor-col">
-          <svg class="frame" aria-hidden="true" focusable="false">
-            <rect class="frame-rest" width="100%" height="100%" rx="10" pathLength="1"></rect>
-            <rect class="frame-draw" width="100%" height="100%" rx="10" pathLength="1"></rect>
-          </svg>
+        <div class="editor-col">
           <label class="sr-only" for="editor">Text editor. Type here to measure your typing.</label>
           <textarea
             id="editor"
@@ -39,38 +27,56 @@
             autocapitalize="off"
             autocomplete="off"
           ></textarea>
-          </div>
+          <span class="caret" aria-hidden="true"></span>
         </div>
+      </main>
 
-        <aside class="panel" id="panel" aria-label="Typing statistics" tabindex="0">
-          <div class="sheet-head">
-            <div>
-              <h2 class="sheet-title" id="sheet-title">Statistics</h2>
-              <p class="sheet-time"><span class="t-active">0:00</span> active · <span class="t-elapsed">0:00</span> elapsed</p>
-            </div>
+      <section class="drawer" id="panel" aria-label="All statistics" hidden>
+        <div class="sheet-head">
+          <div>
+            <h2 class="sheet-title" id="sheet-title">Statistics</h2>
+            <p class="sheet-time"><span class="t-active">0:00</span> active · <span class="t-elapsed">0:00</span> elapsed</p>
+          </div>
+          <div class="sheet-actions">
+            <button class="sl-btn sheet-reset" type="button" data-reset>reset</button>
             <button class="sheet-close" id="sheet-close" type="button" aria-label="Close statistics">
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></path></svg>
             </button>
           </div>
-          <div class="panel-body" id="panel-body"></div>
-        </aside>
-      </main>
+        </div>
+        <div class="drawer-body" id="panel-body"></div>
+      </section>
 
-      <footer class="ftr">
-        <span class="ftr-time"><span class="t-active">0:00</span> active · <span class="t-elapsed">0:00</span> elapsed</span>
-        <span class="status" id="status"><span class="sr-only">Status: </span><span class="status-dot" aria-hidden="true"></span><span class="status-t">idle</span></span>
+      <footer class="sl" id="statusline">
+        <span class="sl-rule" aria-hidden="true"></span>
+        <span class="focus-line" aria-hidden="true"></span>
+        <span class="sl-brand" aria-hidden="true">mnml<i></i>type</span>
+        <span class="sl-seg sl-wpm"><span class="sl-v"></span><span class="sl-k" aria-hidden="true">wpm</span></span>
+        <span class="sl-seg sl-spark" aria-hidden="true"></span>
+        <span class="sl-seg sl-acc"><span class="sl-v"></span><span class="sl-k" aria-hidden="true">acc</span></span>
+        <span class="sl-seg sl-words"><span class="sl-v"></span><span class="sl-k" aria-hidden="true">words</span></span>
+        <span class="sl-seg sl-time"><span class="sr-only">Time: </span><span class="t-active">0:00</span><span class="sr-only"> active, </span><span aria-hidden="true"> / </span><span class="t-elapsed">0:00</span><span class="sr-only"> elapsed</span></span>
+        <button class="sl-btn sl-push" id="stats-toggle" type="button" aria-expanded="false" aria-controls="panel">
+          <span>stats</span>
+          <svg class="chev" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </button>
+        <div class="sl-menu-wrap">
+          <button class="sl-btn" id="width-toggle" type="button" aria-expanded="false" aria-controls="width-menu">
+            <span>width: <span id="width-label">full</span></span>
+            <svg class="chev chev-down" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </button>
+          <div class="menu" id="width-menu" role="group" aria-label="Column width" hidden>
+            <button type="button" data-w="full" aria-pressed="true">full width <span aria-hidden="true">∞</span></button>
+            <button type="button" data-w="wide" aria-pressed="false">wide <span aria-hidden="true">96ch</span></button>
+            <button type="button" data-w="narrow" aria-pressed="false">narrow <span aria-hidden="true">64ch</span></button>
+          </div>
+        </div>
+        <button class="sl-btn sl-reset" id="reset" type="button" data-reset>reset</button>
+        <span class="sl-seg sl-status" id="status"><span class="sr-only">Status: </span><span class="status-dot" aria-hidden="true"></span><span class="status-t">idle</span></span>
       </footer>
     </div>
 
     <div class="scrim" id="scrim" aria-hidden="true"></div>
-    <button class="bar" id="bar" type="button" aria-expanded="false" aria-controls="panel">
-      <span class="sr-only">Show all statistics. </span>
-      <span class="bar-i"><span class="bar-k">WPM</span><span class="bar-v"></span></span>
-      <span class="bar-i"><span class="bar-k">Acc</span><span class="bar-v"></span></span>
-      <span class="bar-i"><span class="bar-k">Words</span><span class="bar-v"></span></span>
-      <svg class="bar-chev" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-    </button>
-
     <p class="sr-only" id="summary" aria-live="polite"></p>
     <p class="sr-only" id="notice" aria-live="polite"></p>
 

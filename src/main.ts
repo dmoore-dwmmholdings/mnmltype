@@ -11,17 +11,22 @@ import { appendEvent, computeContent, createLog, speedFromLog } from './engine/s
 import { createTracker } from './engine/tracker';
 import type { ContentStats, Stats } from './engine/types';
 import { Ambient } from './ui/ambient';
+import { BlockCaret } from './ui/caret';
 import { bindFocusLine, clearEditor } from './ui/editor';
-import { Panel } from './ui/panel';
+import { fmtTime, Panel } from './ui/panel';
 import { animationLoop, debounce, frameScheduler, reducedMotion } from './util/raf';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
 
 const app = $('.app');
 const editor = $<HTMLTextAreaElement>('#editor');
-const resetBtn = $<HTMLButtonElement>('#reset');
-const panelEl = $('#panel');
-const bar = $<HTMLButtonElement>('#bar');
+const statusline = $('#statusline');
+const drawer = $('#panel');
+const statsToggle = $<HTMLButtonElement>('#stats-toggle');
+const widthToggle = $<HTMLButtonElement>('#width-toggle');
+const widthMenu = $('#width-menu');
+const widthLabel = $('#width-label');
+const resetBtns = document.querySelectorAll<HTMLButtonElement>('[data-reset]');
 const scrim = $('#scrim');
 const notice = $('#notice');
 const sheetClose = $<HTMLButtonElement>('#sheet-close');
@@ -30,11 +35,30 @@ const statusText = status.querySelector('.status-t')!;
 const activeEls = document.querySelectorAll('.t-active');
 const elapsedEls = document.querySelectorAll('.t-elapsed');
 
-const panel = new Panel($('#panel-body'), $('#summary'), { pill: $('.pill'), bar });
+const panel = new Panel($('#panel-body'), statusline, $('#summary'));
 const ambient = new Ambient($('.ambient'));
+const caret = new BlockCaret(editor, $('.caret'));
+const phone = matchMedia('(max-width: 639px)');
 
 const LARGE_TEXT = 20_000;
 const ANNOUNCE_MS = 5000;
+
+const store = {
+  get(k: string): string | null {
+    try {
+      return localStorage.getItem(`mnmltype.${k}`);
+    } catch {
+      return null;
+    }
+  },
+  set(k: string, v: string): void {
+    try {
+      localStorage.setItem(`mnmltype.${k}`, v);
+    } catch {
+      /* storage unavailable: preference just isn't remembered */
+    }
+  },
+};
 
 let log = createLog();
 let content: ContentStats = computeContent('');
@@ -44,15 +68,11 @@ let lastClock = '';
 
 // ---- Render ----------------------------------------------------------------
 
-const fmtTime = (ms: number) => {
-  const s = Math.floor(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-};
-
 const animate = animationLoop((dt, now) => {
   const a = panel.spark.step(dt, now);
-  const b = ambient.step(dt);
-  return a || b;
+  const b = panel.miniSpark.step(dt, now);
+  const c = ambient.step(dt);
+  return a || b || c;
 });
 
 function render(now: number): void {
@@ -63,6 +83,7 @@ function render(now: number): void {
   const stats: Stats = { ...speedFromLog(log, now), ...content };
   panel.update(stats);
 
+  panel.miniSpark.update(stats.wpmSeries, stats.sampleCount, now);
   if (panel.spark.update(stats.wpmSeries, stats.sampleCount, now)) {
     const n = stats.wpmSeries.length;
     if (n >= 2 && stats.wpmLive !== null && stats.wpmSeries[n - 1]! > stats.wpmSeries[n - 2]! + 0.5) panel.pulse();
@@ -117,17 +138,28 @@ editor.addEventListener('input', () => {
 setInterval(schedule, 250);
 bindFocusLine(editor, app);
 
+// Mouse clicks on statusline controls keep the editor focused (keyboard focus still works).
+statusline.addEventListener('pointerdown', (e) => {
+  if (!phone.matches && (e.target as Element).closest('button')) e.preventDefault();
+});
+
 // ---- Reset -----------------------------------------------------------------
 
 let armed = false;
 let armTimer: ReturnType<typeof setTimeout> | undefined;
 let clearing = false;
 
+function setResetLabel(confirm: boolean): void {
+  for (const b of resetBtns) {
+    b.textContent = confirm ? 'confirm' : 'reset';
+    b.classList.toggle('is-confirm', confirm);
+  }
+}
+
 function disarm(): void {
   armed = false;
   clearTimeout(armTimer);
-  resetBtn.textContent = 'Reset';
-  resetBtn.classList.remove('is-confirm');
+  setResetLabel(false);
   notice.textContent = '';
 }
 
@@ -135,8 +167,7 @@ function requestReset(): void {
   if (clearing) return;
   if (editor.value.length > 200 && !armed) {
     armed = true;
-    resetBtn.textContent = 'Confirm';
-    resetBtn.classList.add('is-confirm');
+    setResetLabel(true);
     notice.textContent = 'Press Reset or Escape again within 3 seconds to clear the text.';
     armTimer = setTimeout(disarm, 3000);
     return;
@@ -156,68 +187,157 @@ function requestReset(): void {
       content = computeContent('');
       lastAnnounce = -Infinity;
       panel.spark.flatten();
+      panel.miniSpark.flatten();
       setTimeout(() => {
-        if (log.start === null) panel.spark.clear();
+        if (log.start === null) {
+          panel.spark.clear();
+          panel.miniSpark.clear();
+        }
       }, 700);
       clearing = false;
       schedule();
-      editor.focus({ preventScroll: true });
+      caret.schedule();
+      if (!drawer.classList.contains('is-sheet-open')) editor.focus({ preventScroll: true });
     },
     reducedMotion() ? 0 : 200,
   );
 }
 
-// Keep the editor focused on mouse clicks so the focus line doesn't collapse.
-resetBtn.addEventListener('pointerdown', (e) => e.preventDefault());
-resetBtn.addEventListener('click', requestReset);
+for (const b of resetBtns) b.addEventListener('click', requestReset);
 editor.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !e.isComposing) {
     e.preventDefault();
+    if (!widthMenu.hasAttribute('hidden')) return; // Esc closes the menu instead
     requestReset();
   }
 });
 
-// ---- Phone: compact bar + bottom sheet -------------------------------------
+// ---- Column width ----------------------------------------------------------
 
-function setSheet(open: boolean): void {
-  panelEl.classList.toggle('is-open', open);
-  if (open) {
-    panelEl.setAttribute('role', 'dialog');
-    panelEl.setAttribute('aria-modal', 'true');
-    panelEl.setAttribute('aria-labelledby', 'sheet-title');
-  } else {
-    panelEl.removeAttribute('role');
-    panelEl.removeAttribute('aria-modal');
-    panelEl.removeAttribute('aria-labelledby');
+const WIDTHS = ['full', 'wide', 'narrow'] as const;
+type Width = (typeof WIDTHS)[number];
+
+function setWidth(w: Width, animateChange = true): void {
+  app.dataset.width = w;
+  widthLabel.textContent = w;
+  for (const b of widthMenu.querySelectorAll<HTMLButtonElement>('[data-w]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.w === w));
   }
-  for (const el of document.querySelectorAll<HTMLElement>('.hdr, .editor-wrap, .ftr, #bar')) el.inert = open;
-  scrim.classList.toggle('is-open', open);
-  bar.setAttribute('aria-expanded', String(open));
-  if (open) sheetClose.focus({ preventScroll: true });
+  store.set('width', w);
+  if (animateChange && !reducedMotion()) {
+    editor.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 280, easing: 'ease-out' });
+  }
 }
 
-bar.addEventListener('click', () => setSheet(true));
-sheetClose.addEventListener('click', () => {
-  setSheet(false);
-  bar.focus({ preventScroll: true });
+function setMenu(open: boolean, focusToggle = false, focusItem = true): void {
+  widthMenu.hidden = !open;
+  widthToggle.setAttribute('aria-expanded', String(open));
+  if (open) {
+    if (focusItem) widthMenu.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus({ preventScroll: true });
+    if (!reducedMotion()) {
+      widthMenu.animate(
+        [
+          { opacity: 0, transform: 'translateY(6px)' },
+          { opacity: 1, transform: 'none' },
+        ],
+        { duration: 220, easing: 'cubic-bezier(.16, 1, .3, 1)' },
+      );
+    }
+  } else if (focusToggle) {
+    widthToggle.focus({ preventScroll: true });
+  }
+}
+
+// Move focus into the menu only when it was opened from the keyboard (click detail 0).
+widthToggle.addEventListener('click', (e) => setMenu(widthMenu.hasAttribute('hidden'), false, e.detail === 0));
+widthMenu.addEventListener('click', (e) => {
+  const b = (e.target as Element).closest<HTMLButtonElement>('[data-w]');
+  if (!b) return;
+  setWidth(b.dataset.w as Width);
+  setMenu(false);
+  editor.focus({ preventScroll: true });
 });
-scrim.addEventListener('click', () => setSheet(false));
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && panelEl.classList.contains('is-open')) {
-    setSheet(false);
-    bar.focus({ preventScroll: true });
+widthMenu.addEventListener('keydown', (e) => {
+  const items = [...widthMenu.querySelectorAll<HTMLButtonElement>('[data-w]')];
+  const i = items.indexOf(document.activeElement as HTMLButtonElement);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    items[(i + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
   }
 });
-matchMedia('(max-width: 639px)').addEventListener('change', (e) => {
-  if (!e.matches) setSheet(false);
+document.addEventListener('pointerdown', (e) => {
+  if (!widthMenu.hidden && !(e.target as Element).closest('.sl-menu-wrap')) setMenu(false);
 });
 
-// Keep the bar above the on-screen keyboard.
+const saved = store.get('width');
+setWidth(WIDTHS.includes(saved as Width) ? (saved as Width) : 'full', false);
+
+// ---- Stats drawer (desktop/tablet) and bottom sheet (phone) ----------------
+
+let sheetTimer: ReturnType<typeof setTimeout> | undefined;
+
+function setDrawer(open: boolean, opts: { focus?: boolean; remember?: boolean } = {}): void {
+  clearTimeout(sheetTimer);
+  statsToggle.setAttribute('aria-expanded', String(open));
+
+  if (phone.matches) {
+    for (const el of document.querySelectorAll<HTMLElement>('.main, .sl')) el.inert = open;
+    scrim.classList.toggle('is-open', open);
+    if (open) {
+      drawer.setAttribute('role', 'dialog');
+      drawer.setAttribute('aria-modal', 'true');
+      drawer.setAttribute('aria-labelledby', 'sheet-title');
+      drawer.hidden = false;
+      requestAnimationFrame(() => requestAnimationFrame(() => drawer.classList.add('is-sheet-open')));
+      sheetClose.focus({ preventScroll: true });
+    } else {
+      drawer.removeAttribute('role');
+      drawer.removeAttribute('aria-modal');
+      drawer.removeAttribute('aria-labelledby');
+      drawer.classList.remove('is-sheet-open');
+      sheetTimer = setTimeout(() => (drawer.hidden = true), reducedMotion() ? 0 : 420);
+      if (opts.focus !== false) statsToggle.focus({ preventScroll: true });
+    }
+    return;
+  }
+
+  drawer.hidden = !open;
+  if (open) panel.reveal();
+  if (opts.remember !== false) store.set('drawer', open ? '1' : '0');
+  caret.schedule();
+}
+
+statsToggle.addEventListener('click', () => setDrawer(drawer.hasAttribute('hidden')));
+sheetClose.addEventListener('click', () => setDrawer(false));
+scrim.addEventListener('click', () => setDrawer(false));
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!widthMenu.hidden) {
+    e.preventDefault();
+    setMenu(false, true);
+  } else if (phone.matches && !drawer.hidden) {
+    e.preventDefault();
+    setDrawer(false);
+  }
+});
+phone.addEventListener('change', () => {
+  for (const el of document.querySelectorAll<HTMLElement>('.main, .sl')) el.inert = false;
+  scrim.classList.remove('is-open');
+  drawer.classList.remove('is-sheet-open');
+  drawer.removeAttribute('role');
+  drawer.removeAttribute('aria-modal');
+  const open = !phone.matches && store.get('drawer') === '1';
+  drawer.hidden = !open;
+  statsToggle.setAttribute('aria-expanded', String(open));
+});
+if (!phone.matches && store.get('drawer') === '1') setDrawer(true, { remember: false });
+
+// Keep the statusline above the on-screen keyboard.
 const vv = window.visualViewport;
 if (vv) {
   const place = () => {
     const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    bar.style.setProperty('--kb', `${Math.round(kb)}px`);
+    statusline.style.setProperty('--kb', `${Math.round(kb)}px`);
   };
   vv.addEventListener('resize', place);
   vv.addEventListener('scroll', place);

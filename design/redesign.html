@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mnmltype redesign mock-ups</title>
+<style>
+@font-face { font-family: "Inter"; font-weight: 400; src: url(../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 500; src: url(../node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "Inter"; font-weight: 600; src: url(../node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; src: url(../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 500; src: url(../node_modules/@fontsource/jetbrains-mono/files/jetbrains-mono-latin-500-normal.woff2) format("woff2"); }
+
+:root {
+  --bg: #05070B; --bg-elev: #0A0E15; --line: #141B27; --line-strong: #1E2838;
+  --text: #E7EDF6; --text-dim: #7A889C; --text-faint: #3A4556;
+  --blue: #2F7BFF; --blue-bright: #6FA8FF; --blue-deep: #0B2A66; --blue-glow: rgba(47,123,255,.35);
+  --font-ui: "Inter", system-ui, sans-serif; --font-num: "JetBrains Mono", ui-monospace, monospace;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --review-h: 44px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 400 14px/1.5 var(--font-ui); -webkit-font-smoothing: antialiased; overflow: hidden; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+/* ---------- Review bar (not part of the design) ---------- */
+.review {
+  position: fixed; inset: 0 0 auto 0; height: var(--review-h); z-index: 100;
+  display: flex; align-items: center; gap: 16px; padding: 0 16px;
+  background: #E7EDF6; color: #05070B; font-size: 13px;
+}
+.review b { font-weight: 600; white-space: nowrap; }
+.review-tabs { display: flex; gap: 4px; }
+.review-tabs button { white-space: nowrap; padding: 6px 12px; border-radius: 6px; font-weight: 500; }
+.review-tabs button:hover { background: rgba(5,7,11,.08); }
+.review-tabs button[aria-selected="true"] { background: #05070B; color: #E7EDF6; }
+.review-cap { color: #3A4556; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-hint { margin-left: auto; color: #3A4556; white-space: nowrap; }
+
+.stage { position: fixed; inset: var(--review-h) 0 0 0; }
+.v { position: absolute; inset: 0; display: none; overflow: hidden; }
+.v.is-on { display: block; }
+
+/* ---------- Shared: document + block cursor ---------- */
+.doc { white-space: pre-wrap; word-wrap: break-word; margin: 0 auto; transition: max-width 600ms var(--ease-out); max-width: 100%; }
+.v[data-width="wide"] .doc { max-width: 96ch; }
+.v[data-width="narrow"] .doc { max-width: 64ch; }
+.caret {
+  display: inline-block; width: .58em; height: 1.15em; margin-left: 1px;
+  vertical-align: -.2em; background: var(--blue); border-radius: 1px;
+  box-shadow: 0 0 12px var(--blue-glow);
+  animation: blink 1.06s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+.typing .caret { animation: none; }
+.num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.k { font-size: 11px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--text-dim); }
+
+/* Wordmark: the period is the blinking block cursor. */
+.mark { display: inline-flex; align-items: baseline; font-family: var(--font-num); font-weight: 500; letter-spacing: -.03em; color: var(--text); white-space: nowrap; }
+.mark i { display: inline-block; width: .5em; height: .5em; margin: 0 .08em; background: var(--blue); box-shadow: 0 0 .6em var(--blue-glow); font-style: normal; }
+
+/* Width switcher (segmented) */
+.seg { display: inline-flex; padding: 3px; border: 1px solid var(--line-strong); border-radius: 9px; gap: 2px; }
+.seg button { padding: 4px 10px; border-radius: 6px; font-size: 12px; color: var(--text-dim); transition: color 140ms, background-color 140ms; }
+.seg button:hover { color: var(--text); }
+.seg button[aria-pressed="true"] { background: var(--line-strong); color: var(--text); }
+.ghost { height: 32px; padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 9px; color: var(--text-dim); font-size: 13px; transition: color 140ms, border-color 140ms; }
+.ghost:hover { color: var(--text); border-color: var(--blue); }
+
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 3px rgba(47,123,255,.18); }
+
+/* ============ V1: Instrument strip ============ */
+.v1 { display: none; grid-template-rows: 64px minmax(0,1fr) auto; }
+.v1.is-on { display: grid; }
+.v1-hdr { display: flex; align-items: center; justify-content: space-between; padding: 0 40px; }
+.v1-hdr .mark { font-size: 22px; }
+.v1-hdr-r { display: flex; gap: 12px; align-items: center; }
+.v1-body { overflow: auto; padding: 32px 40px; }
+.v1 .doc { font: 400 20px/1.75 var(--font-ui); }
+.v1 .doc .caret { width: .55em; }
+.v1-strip { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: end; gap: 48px; padding: 20px 40px 22px; background: linear-gradient(rgba(11,42,102,.22), rgba(11,42,102,0) 70%); }
+.v1-strip svg { position: absolute; left: 0; right: 0; top: -40px; width: 100%; height: 40px; pointer-events: none; overflow: visible; }
+.v1-hero { position: relative; display: flex; align-items: baseline; gap: 10px; }
+.v1-hero .big { font-size: 56px; line-height: .9; font-weight: 500; letter-spacing: -.04em; text-shadow: 0 0 24px rgba(47,123,255,.35); }
+.v1-hero .sub { display: grid; gap: 4px; }
+.v1-groups { position: relative; display: flex; gap: 40px; flex-wrap: wrap; }
+.v1-group { display: grid; gap: 8px; }
+.v1-group .pairs { display: flex; gap: 24px; }
+.pair { display: grid; gap: 2px; }
+.pair .val { font-size: 17px; font-weight: 500; }
+.pair .lab { font-size: 12px; color: var(--text-dim); }
+.v1-time { position: relative; display: grid; gap: 6px; justify-items: end; font-size: 12px; color: var(--text-dim); }
+
+/* ============ V2: Statusline ============ */
+.v2-body { position: absolute; inset: 0 0 34px; overflow: auto; padding: 56px 48px; }
+.v2 .doc { font: 400 17px/1.8 var(--font-num); letter-spacing: -.01em; }
+.v2 .doc .caret { width: 1ch; height: 1.3em; vertical-align: -.28em; }
+.v2-line {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 34px; z-index: 3;
+  display: flex; align-items: stretch; background: var(--bg-elev); border-top: 1px solid var(--line);
+  font-family: var(--font-num); font-size: 12.5px; color: var(--text-dim);
+}
+.v2-line > * { display: flex; align-items: center; gap: 8px; padding: 0 16px; border-right: 1px solid var(--line); white-space: nowrap; }
+.v2-brand { background: var(--blue); color: #020814; font-weight: 500; font-size: 13px; letter-spacing: -.02em; border-right: 0 !important; padding: 0 18px !important; }
+.v2-brand i { display: inline-block; width: .55em; height: .55em; background: #020814; margin: 0 .1em; }
+.v2-seg b { color: var(--text); font-weight: 500; }
+.v2-wpm b { color: var(--blue-bright); font-size: 14px; }
+.v2-spark svg { width: 96px; height: 18px; }
+.v2-push { margin-left: auto; border-left: 1px solid var(--line); }
+.v2-line button { color: var(--text-dim); transition: color 140ms, background-color 140ms; }
+.v2-line button:hover { color: var(--text); background: var(--line); }
+.v2-line button[aria-expanded="true"] { color: var(--blue-bright); }
+.v2-drawer {
+  position: absolute; left: 0; right: 0; bottom: 34px; z-index: 2;
+  display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 0;
+  background: var(--bg-elev); border-top: 1px solid var(--line-strong);
+  transform: translateY(100%); opacity: 0; transition: transform 420ms var(--ease-out), opacity 300ms;
+  pointer-events: none;
+}
+.v2.drawer-open .v2-drawer { transform: none; opacity: 1; pointer-events: auto; }
+.v2-col { padding: 20px 24px 24px; border-right: 1px solid var(--line); display: grid; gap: 10px; align-content: start; }
+.v2-col:last-child { border-right: 0; }
+.v2-col .row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-dim); }
+.v2-col .row span:last-child { font-family: var(--font-num); color: var(--text); }
+.v2-col .big { font-family: var(--font-num); font-size: 48px; font-weight: 500; line-height: 1; letter-spacing: -.04em; color: var(--text); }
+.v2-col svg { width: 100%; height: 48px; }
+.v2-menu { position: absolute; right: 120px; bottom: 40px; z-index: 4; display: none; min-width: 180px; padding: 6px; background: var(--bg-elev); border: 1px solid var(--line-strong); border-radius: 10px; font-family: var(--font-num); font-size: 12.5px; }
+.v2.menu-open .v2-menu { display: grid; }
+.v2-menu button { text-align: left; padding: 8px 10px; border-radius: 6px; color: var(--text-dim); display: flex; justify-content: space-between; }
+.v2-menu button:hover { background: var(--line); color: var(--text); }
+.v2-menu button[aria-pressed="true"] { color: var(--blue-bright); }
+
+/* ============ V3: Horizon ============ */
+.v3-glow { position: absolute; left: -20vw; right: -20vw; bottom: -55vh; height: 90vh; border-radius: 50%; background: radial-gradient(closest-side, rgba(11,42,102,.75), rgba(11,42,102,0)); pointer-events: none; }
+.v3-hdr { position: absolute; inset: 0 0 auto 0; height: 88px; display: flex; align-items: center; justify-content: space-between; padding: 0 6vw; z-index: 3; }
+.v3-hdr .mark { font-size: 30px; font-weight: 500; }
+.v3-hdr .mark .t { color: var(--text-dim); }
+.v3-opt { width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 12px; color: var(--text-dim); transition: color 140ms, border-color 140ms; }
+.v3-opt:hover, .v3.menu-open .v3-opt { color: var(--text); border-color: var(--blue); }
+.v3-pop { position: absolute; top: 76px; right: 6vw; z-index: 4; width: 240px; padding: 16px; display: none; gap: 14px; background: var(--bg-elev); border: 1px solid var(--line-strong); border-radius: 14px; }
+.v3.menu-open .v3-pop { display: grid; }
+.v3-pop .seg { width: 100%; }
+.v3-pop .seg button { flex: 1; }
+.v3-pop .ghost { width: 100%; }
+.v3-body { position: absolute; inset: 88px 0 300px; overflow: auto; padding: 16px 6vw; }
+.v3 .doc { font: 400 22px/1.7 var(--font-ui); letter-spacing: -.005em; }
+.v3 .doc .caret { width: .55em; }
+.v3-horizon { position: absolute; left: 0; right: 0; bottom: 0; height: 300px; }
+.v3-horizon svg { position: absolute; left: 0; right: 0; bottom: 64px; width: 100%; height: 104px; overflow: visible; }
+.v3-big { position: absolute; right: 6vw; bottom: 186px; display: flex; align-items: baseline; gap: 12px; }
+.v3-big .n { font-family: var(--font-num); font-size: 120px; font-weight: 500; line-height: .8; letter-spacing: -.06em; text-shadow: 0 0 40px rgba(47,123,255,.45); }
+.v3-big .u { display: grid; gap: 6px; }
+.v3-ticks { position: absolute; left: 6vw; right: 6vw; bottom: 18px; display: flex; justify-content: space-between; gap: 16px; }
+.v3-ticks .pair .val { font-size: 15px; }
+.v3-ticks .pair .lab { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+.v3-foot { position: absolute; left: 6vw; bottom: 196px; font-family: var(--font-num); font-size: 12px; color: var(--text-dim); display: flex; gap: 10px; align-items: center; }
+</style>
+</head>
+<body>
+
+<div class="review" role="banner">
+  <b>mnmltype · mock-ups</b>
+  <div class="review-tabs" role="tablist">
+    <button role="tab" data-v="1" aria-selected="true">1 · Strip</button>
+    <button role="tab" data-v="2" aria-selected="false">2 · Statusline</button>
+    <button role="tab" data-v="3" aria-selected="false">3 · Horizon</button>
+  </div>
+  <span class="review-cap" id="cap"></span>
+  <span class="review-hint">Type anywhere · try the width options</span>
+</div>
+
+<div class="stage">
+
+  <!-- ============ 1. Strip ============ -->
+  <section class="v v1 is-on" data-v="1" data-width="full">
+    <header class="v1-hdr">
+      <span class="mark">mnml<i></i>type</span>
+      <div class="v1-hdr-r">
+        <div class="seg" data-widths><button aria-pressed="true" data-w="full">Full</button><button aria-pressed="false" data-w="wide">Wide</button><button aria-pressed="false" data-w="narrow">Narrow</button></div>
+        <button class="ghost">Reset</button>
+      </div>
+    </header>
+    <div class="v1-body"><div class="doc"></div></div>
+    <footer class="v1-strip">
+      <svg class="spark-fill" data-spark="strip" viewBox="0 0 1000 40" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="v1-hero"><span class="big num">87</span><span class="sub"><span class="k">wpm</span><span class="num" style="font-size:12px;color:var(--text-dim)">gross 92 · peak 104</span></span></div>
+      <div class="v1-groups">
+        <div class="v1-group"><span class="k">Precision</span><div class="pairs">
+          <div class="pair"><span class="val num">96.2%</span><span class="lab">accuracy</span></div>
+          <div class="pair"><span class="val num">81%</span><span class="lab">consistency</span></div>
+          <div class="pair"><span class="val num">435</span><span class="lab">cpm</span></div>
+        </div></div>
+        <div class="v1-group"><span class="k">Content</span><div class="pairs">
+          <div class="pair"><span class="val num" data-live="words">0</span><span class="lab">words</span></div>
+          <div class="pair"><span class="val num" data-live="chars">0</span><span class="lab">characters</span></div>
+          <div class="pair"><span class="val num">7</span><span class="lab">sentences</span></div>
+          <div class="pair"><span class="val num">4.6</span><span class="lab">avg word</span></div>
+        </div></div>
+      </div>
+      <div class="v1-time"><span class="num">0:42 active · 1:10</span><span><span class="dot"></span>&nbsp; live</span></div>
+    </footer>
+  </section>
+
+  <!-- ============ 2. Statusline ============ -->
+  <section class="v v2" data-v="2" data-width="full">
+    <div class="v2-body"><div class="doc"></div></div>
+
+    <div class="v2-drawer" aria-hidden="true">
+      <div class="v2-col"><span class="k">Speed</span><span class="big">87<span style="font-size:14px;color:var(--text-dim);letter-spacing:0"> wpm</span></span><svg data-spark="drawer" viewBox="0 0 300 48" preserveAspectRatio="none"></svg>
+        <div class="row"><span>gross</span><span>92</span></div><div class="row"><span>peak</span><span>104</span></div><div class="row"><span>cpm</span><span>435</span></div></div>
+      <div class="v2-col"><span class="k">Precision</span>
+        <div class="row"><span>accuracy</span><span>96.2%</span></div><div class="row"><span>correction rate</span><span>3.8%</span></div><div class="row"><span>consistency</span><span>81%</span></div><div class="row"><span>keystrokes</span><span>1,231</span></div><div class="row"><span>backspaces</span><span>46</span></div></div>
+      <div class="v2-col"><span class="k">Content</span>
+        <div class="row"><span>words</span><span data-live="words">0</span></div><div class="row"><span>characters</span><span data-live="chars">0</span></div><div class="row"><span>sentences</span><span>7</span></div><div class="row"><span>paragraphs</span><span>3</span></div><div class="row"><span>unique words</span><span>148</span></div></div>
+      <div class="v2-col"><span class="k">Words</span>
+        <div class="row"><span>avg length</span><span>4.6</span></div><div class="row"><span>longest</span><span>instrumentation</span></div><div class="row"><span>active</span><span>0:42</span></div><div class="row"><span>elapsed</span><span>1:10</span></div></div>
+    </div>
+
+    <div class="v2-menu" role="menu">
+      <button role="menuitemradio" aria-pressed="true" data-w="full">full width <span>∞</span></button>
+      <button role="menuitemradio" aria-pressed="false" data-w="wide">wide <span>96ch</span></button>
+      <button role="menuitemradio" aria-pressed="false" data-w="narrow">narrow <span>64ch</span></button>
+    </div>
+
+    <div class="v2-line">
+      <span class="v2-brand">mnml<i></i>type</span>
+      <span class="v2-seg v2-wpm"><b>87</b> wpm</span>
+      <span class="v2-spark"><svg data-spark="mini" viewBox="0 0 96 18" preserveAspectRatio="none"></svg></span>
+      <span class="v2-seg"><b>96.2%</b> acc</span>
+      <span class="v2-seg"><b data-live="words">0</b> words</span>
+      <span class="v2-seg">0:42 / 1:10</span>
+      <button class="v2-push" data-toggle="drawer" aria-expanded="false">stats ▴</button>
+      <button data-toggle="menu" aria-expanded="false">width: <span data-wlabel>full</span> ▾</button>
+      <button>reset</button>
+      <span><span class="dot"></span> live</span>
+    </div>
+  </section>
+
+  <!-- ============ 3. Horizon ============ -->
+  <section class="v v3" data-v="3" data-width="full">
+    <div class="v3-glow"></div>
+    <header class="v3-hdr">
+      <span class="mark">mnml<i></i><span class="t">type</span></span>
+      <button class="v3-opt" data-toggle="menu" aria-expanded="false" aria-label="Options">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+      </button>
+    </header>
+    <div class="v3-pop">
+      <span class="k">Column width</span>
+      <div class="seg" data-widths><button aria-pressed="true" data-w="full">Full</button><button aria-pressed="false" data-w="wide">Wide</button><button aria-pressed="false" data-w="narrow">Narrow</button></div>
+      <button class="ghost">Reset session</button>
+    </div>
+    <div class="v3-body"><div class="doc"></div></div>
+    <div class="v3-horizon">
+      <span class="v3-foot"><span class="dot"></span> live · 0:42 active · 1:10 elapsed</span>
+      <svg data-spark="horizon" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <div class="v3-big"><span class="n">87</span><span class="u"><span class="k">wpm</span><span class="num" style="font-size:12px;color:var(--text-dim)">peak 104</span></span></div>
+      <div class="v3-ticks">
+        <div class="pair"><span class="val num">96.2%</span><span class="lab">accuracy</span></div>
+        <div class="pair"><span class="val num">81%</span><span class="lab">consistency</span></div>
+        <div class="pair"><span class="val num">435</span><span class="lab">cpm</span></div>
+        <div class="pair"><span class="val num">46</span><span class="lab">backspaces</span></div>
+        <div class="pair"><span class="val num" data-live="words">0</span><span class="lab">words</span></div>
+        <div class="pair"><span class="val num" data-live="chars">0</span><span class="lab">chars</span></div>
+        <div class="pair"><span class="val num">7</span><span class="lab">sentences</span></div>
+        <div class="pair"><span class="val num">4.6</span><span class="lab">avg word</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+const CAPTIONS = {
+  1: 'By the book: quiet header, full-width text, stats in one bottom strip whose top edge is the live WPM sparkline.',
+  2: 'Refined: no header. Mono text and a code-editor status line; the wordmark is the solid blue segment. "stats ▴" opens a full-width drawer.',
+  3: 'Bold: the sparkline becomes a glowing horizon across the screen; WPM sits on it. Options live behind one button, top right.',
+};
+const SAMPLE = 'The quiet part of writing is the part between keystrokes. You find the next word, and the cursor waits for you, steady and blue.\n\nThis draft uses the full width of the screen. Pick a narrower column from the options if long lines feel tiring; the text reflows in place.';
+let text = SAMPLE;
+const series = [12,30,44,52,61,58,66,72,70,78,84,80,88,91,86,94,97,92,89,95,101,104,98,93,90,96,99,94,88,92,95,97,93,90,87,91,94,96,92,89,87,90,93,88,86,89,92,95,91,87];
+
+function sparkPath(w, h, pad, area) {
+  const max = 120, n = series.length, dx = w / (n - 1);
+  const pts = series.map((v, i) => [i * dx, h - pad - (v / max) * (h - pad * 2)]);
+  let d = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    d += `C${p1[0] + (p2[0] - p0[0]) / 6} ${p1[1] + (p2[1] - p0[1]) / 6} ${p2[0] - (p3[0] - p1[0]) / 6} ${p2[1] - (p3[1] - p1[1]) / 6} ${p2[0]} ${p2[1]}`;
+  }
+  return { line: d, area: `${d}L${w} ${h}L0 ${h}Z`, last: pts[n - 1] };
+}
+function drawSparks() {
+  document.querySelectorAll('svg[data-spark]').forEach((svg, idx) => {
+    const kind = svg.dataset.spark;
+    const [, , w, h] = svg.getAttribute('viewBox').split(' ').map(Number);
+    const pad = kind === 'mini' ? 2 : kind === 'strip' ? 4 : 8;
+    const p = sparkPath(w, h, pad);
+    const id = 'g' + idx;
+    const fillOp = kind === 'strip' ? .22 : kind === 'horizon' ? .3 : .35;
+    const lineOp = 1;
+    svg.innerHTML = `<defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2F7BFF" stop-opacity="${fillOp}"/><stop offset="1" stop-color="#2F7BFF" stop-opacity="0"/></linearGradient></defs>
+      <path d="${p.area}" fill="url(#${id})"/>
+      <path d="${p.line}" fill="none" stroke="#6FA8FF" stroke-opacity="${lineOp}" stroke-width="${kind === 'horizon' ? 2 : 1.5}" vector-effect="non-scaling-stroke" ${kind === 'horizon' ? 'style="filter:drop-shadow(0 0 6px rgba(47,123,255,.8))"' : ''}/>`;
+  });
+}
+
+function render() {
+  const words = (text.trim().match(/\S+/g) || []).length;
+  document.querySelectorAll('.doc').forEach((doc) => {
+    doc.textContent = text;
+    const c = document.createElement('span');
+    c.className = 'caret';
+    doc.append(c);
+  });
+  document.querySelectorAll('[data-live="words"]').forEach((el) => (el.textContent = words.toLocaleString('en-US')));
+  document.querySelectorAll('[data-live="chars"]').forEach((el) => (el.textContent = text.length.toLocaleString('en-US')));
+}
+
+let typingTimer;
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === 'Backspace') text = text.slice(0, -1);
+  else if (e.key === 'Enter') text += '\n';
+  else if (e.key.length === 1) text += e.key;
+  else return;
+  e.preventDefault();
+  document.body.classList.add('typing');
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => document.body.classList.remove('typing'), 500);
+  render();
+  const body = document.querySelector('.v.is-on [class$="-body"]');
+  if (body) body.scrollTop = body.scrollHeight;
+});
+
+function show(n) {
+  document.querySelectorAll('.v').forEach((v) => v.classList.toggle('is-on', v.dataset.v === String(n)));
+  document.querySelectorAll('.review-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.v === String(n))));
+  document.getElementById('cap').textContent = CAPTIONS[n];
+}
+document.querySelectorAll('.review-tabs button').forEach((b) => b.addEventListener('click', () => { show(b.dataset.v); b.blur(); }));
+
+function setWidth(v, w) {
+  v.dataset.width = w;
+  v.querySelectorAll('[data-w]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.w === w)));
+  const lab = v.querySelector('[data-wlabel]');
+  if (lab) lab.textContent = w;
+}
+document.querySelectorAll('.v').forEach((v) => {
+  v.querySelectorAll('[data-w]').forEach((b) => b.addEventListener('click', () => { setWidth(v, b.dataset.w); v.classList.remove('menu-open'); b.blur(); }));
+  v.querySelectorAll('[data-toggle]').forEach((b) => b.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const cls = b.dataset.toggle + '-open';
+    const on = v.classList.toggle(cls);
+    b.setAttribute('aria-expanded', String(on));
+    b.blur();
+  }));
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.v2-menu, .v3-pop')) document.querySelectorAll('.v.menu-open').forEach((v) => v.classList.remove('menu-open'));
+});
+
+drawSparks();
+render();
+show(1);
+</script>
+</body>
+</html>

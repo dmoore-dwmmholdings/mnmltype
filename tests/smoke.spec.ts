@@ -56,11 +56,11 @@ test.describe('desktop', () => {
     await page.locator('#editor').fill('x'.repeat(250));
     const btn = page.locator('#reset');
     await btn.click();
-    await expect(btn).toHaveText('Confirm');
+    await expect(btn).toHaveText('confirm');
     await expect(page.locator('#editor')).not.toHaveValue('');
     await btn.click();
     await expect(page.locator('#editor')).toHaveValue('');
-    await expect(btn).toHaveText('Reset');
+    await expect(btn).toHaveText('reset');
 
     await page.keyboard.type('abc');
     await page.keyboard.press('Escape');
@@ -68,10 +68,11 @@ test.describe('desktop', () => {
   });
 });
 
-test('phone: no horizontal scroll, compact bar visible, sheet opens', async ({ page }) => {
+test('phone: no horizontal scroll, statusline visible, sheet opens', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/');
-  const bar = page.locator('#bar');
+  await expect(page.locator('#statusline .sl-wpm')).toBeVisible();
+  const bar = page.locator('#stats-toggle');
   await expect(bar).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
@@ -100,10 +101,39 @@ test('reduced motion: no console errors, stats still update', async ({ page }) =
   expect(errors).toEqual([]);
 });
 
-test('tablet: header pill shows WPM', async ({ page }) => {
+test('tablet: statusline shows WPM', async ({ page }) => {
   await page.setViewportSize({ width: 800, height: 1000 });
   await page.goto('/');
-  await expect(page.locator('.pill')).toBeVisible();
+  await expect(page.locator('#statusline .sl-wpm')).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflow).toBe(false);
+});
+
+test('block caret follows the text and width menu narrows the column', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#editor')).toBeFocused();
+  const caret = page.locator('.caret');
+  await expect(caret).toBeVisible();
+  const x0 = (await caret.boundingBox())!.x;
+  await page.keyboard.type('hello', { delay: 20 });
+  await expect.poll(async () => (await caret.boundingBox())!.x).toBeGreaterThan(x0 + 30);
+
+  const editorBox = async () => (await page.locator('#editor').boundingBox())!.width;
+  const full = await editorBox();
+  await page.locator('#width-toggle').click();
+  await page.locator('#width-menu [data-w="narrow"]').click();
+  await expect(page.locator('#width-label')).toHaveText('narrow');
+  expect(await editorBox()).toBeLessThan(full);
+  await page.reload();
+  await expect(page.locator('#width-label')).toHaveText('narrow');
+});
+
+test('stats drawer toggles from the statusline', async ({ page }) => {
+  await page.goto('/');
+  const toggle = page.locator('#stats-toggle');
+  await toggle.click();
+  await expect(page.locator('#panel')).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await toggle.click();
+  await expect(page.locator('#panel')).toBeHidden();
 });
