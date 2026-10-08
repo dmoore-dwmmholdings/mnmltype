@@ -406,7 +406,8 @@
   .sl-brand { padding: 0 var(--s-3); font-size: var(--text-xs); }
   .sl-seg { padding: 0 10px; }
   .sl-push { min-width: 44px; justify-content: center; border-right: 0; }
-  .sl-push span { display: none; }
+  /* Visually hidden, still the button's accessible name. */
+  .sl-push span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
   .scrim {
     display: block;
