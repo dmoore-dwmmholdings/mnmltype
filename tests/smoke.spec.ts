@@ -1,0 +1,109 @@
+import { expect, test, type Page } from '@playwright/test';
+
+/** A stat's real value, from its visually hidden text. Rows are found by their <dt>. */
+const stat = (page: Page, label: string) =>
+  label === 'WPM'
+    ? page.locator('.hero-num .sr-only')
+    : page
+        .locator('#panel-body .row')
+        .filter({ has: page.getByText(label, { exact: true }) })
+        .locator('.sr-only');
+
+const value = async (page: Page, label: string) => (await stat(page, label).textContent()) ?? '';
+
+const TEXT = 'The quick brown fox jumps over the lazy dog';
+
+test.describe('desktop', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#editor')).toBeFocused();
+  });
+
+  test('loads focused with empty stats', async ({ page }) => {
+    await expect(stat(page, 'WPM')).toHaveText('Net words per minute: not available');
+    await expect(stat(page, 'Accuracy')).toHaveText('not available');
+    await expect(page.locator('.hero-num .odo')).toHaveText('—');
+  });
+
+  test('typing updates content and speed stats', async ({ page }) => {
+    await page.keyboard.type(TEXT, { delay: 80 }); // 43 chars × 80 ms ≈ 3.4 s
+    await expect(stat(page, 'Words')).toHaveText('9');
+    await expect(stat(page, 'Characters')).toHaveText(`${TEXT.length}`);
+    await expect.poll(async () => (await value(page, 'WPM')).split(': ')[1]).toMatch(/^\d+$/);
+    await expect(stat(page, 'Accuracy')).toHaveText('100.0%');
+  });
+
+  test('backspaces lower accuracy', async ({ page }) => {
+    await page.keyboard.type(TEXT, { delay: 30 });
+    for (let i = 0; i < 3; i++) await page.keyboard.press('Backspace', { delay: 30 });
+    await expect(stat(page, 'Backspaces')).toHaveText('3');
+    const acc = parseFloat((await value(page, 'Accuracy')) ?? '100');
+    expect(acc).toBeLessThan(100);
+  });
+
+  test('reset clears editor and stats', async ({ page }) => {
+    await page.keyboard.type('hello world', { delay: 20 });
+    await expect(stat(page, 'Words')).toHaveText('2');
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expect(page.locator('#editor')).toHaveValue('');
+    await expect(stat(page, 'Words')).toHaveText('not available');
+    await expect(stat(page, 'Accuracy')).toHaveText('not available');
+    await expect(stat(page, 'Keystrokes')).toHaveText('not available');
+    await expect(page.locator('#editor')).toBeFocused();
+  });
+
+  test('long text needs a confirm click; Esc resets', async ({ page }) => {
+    await page.locator('#editor').fill('x'.repeat(250));
+    const btn = page.locator('#reset');
+    await btn.click();
+    await expect(btn).toHaveText('Confirm');
+    await expect(page.locator('#editor')).not.toHaveValue('');
+    await btn.click();
+    await expect(page.locator('#editor')).toHaveValue('');
+    await expect(btn).toHaveText('Reset');
+
+    await page.keyboard.type('abc');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#editor')).toHaveValue('');
+  });
+});
+
+test('phone: no horizontal scroll, compact bar visible, sheet opens', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/');
+  const bar = page.locator('#bar');
+  await expect(bar).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  expect(overflow).toBe(false);
+  await page.locator('#editor').click();
+  await page.keyboard.type('one two three', { delay: 20 });
+  await bar.click();
+  await expect(bar).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#panel')).toBeInViewport();
+  await expect(stat(page, 'Words')).toHaveText('3');
+  await page.keyboard.press('Escape');
+  await expect(bar).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('reduced motion: no console errors, stats still update', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  await expect(page.locator('#editor')).toBeFocused();
+  await page.keyboard.type(TEXT, { delay: 80 });
+  await expect(stat(page, 'Words')).toHaveText('9');
+  await expect.poll(async () => (await value(page, 'WPM')).split(': ')[1]).toMatch(/^\d+$/);
+  await page.locator('#reset').click();
+  await expect(stat(page, 'Words')).toHaveText('not available');
+  expect(errors).toEqual([]);
+});
+
+test('tablet: header pill shows WPM', async ({ page }) => {
+  await page.setViewportSize({ width: 800, height: 1000 });
+  await page.goto('/');
+  await expect(page.locator('.pill')).toBeVisible();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  expect(overflow).toBe(false);
+});
