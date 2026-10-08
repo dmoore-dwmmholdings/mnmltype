@@ -28,6 +28,7 @@
             autocomplete="off"
           ></textarea>
           <span class="caret" aria-hidden="true"></span>
+          <span class="wpm-tag is-empty" aria-hidden="true"><span class="wpm-tag-v"></span><span class="wpm-tag-k">wpm</span></span>
         </div>
       </main>
 
@@ -45,6 +46,9 @@
           </div>
         </div>
         <div class="drawer-body" id="panel-body"></div>
+        <div class="sheet-view">
+          <button class="menu-switch" type="button" data-cursor-wpm aria-pressed="true">WPM under cursor <span class="switch" aria-hidden="true"></span></button>
+        </div>
       </section>
 
       <footer class="sl" id="statusline">
@@ -61,14 +65,19 @@
           <svg class="chev" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="M6 15l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
         </button>
         <div class="sl-menu-wrap">
-          <button class="sl-btn" id="width-toggle" type="button" aria-expanded="false" aria-controls="width-menu">
-            <span>width: <span id="width-label">full</span></span>
+          <button class="sl-btn" id="view-toggle" type="button" aria-expanded="false" aria-controls="view-menu">
+            <span>view</span>
             <svg class="chev chev-down" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           </button>
-          <div class="menu" id="width-menu" role="group" aria-label="Column width" hidden>
-            <button type="button" data-w="full" aria-pressed="true">full width <span aria-hidden="true">∞</span></button>
-            <button type="button" data-w="wide" aria-pressed="false">wide <span aria-hidden="true">96ch</span></button>
-            <button type="button" data-w="narrow" aria-pressed="false">narrow <span aria-hidden="true">64ch</span></button>
+          <div class="menu" id="view-menu" hidden>
+            <p class="menu-k" id="width-k">column width</p>
+            <div class="menu-group" role="group" aria-labelledby="width-k">
+              <button type="button" data-w="full" aria-pressed="true">full width <span aria-hidden="true">∞</span></button>
+              <button type="button" data-w="wide" aria-pressed="false">wide <span aria-hidden="true">96ch</span></button>
+              <button type="button" data-w="narrow" aria-pressed="false">narrow <span aria-hidden="true">64ch</span></button>
+            </div>
+            <hr class="menu-sep" />
+            <button class="menu-switch" type="button" data-cursor-wpm aria-pressed="true">wpm under cursor <span class="switch" aria-hidden="true"></span></button>
           </div>
         </div>
         <button class="sl-btn sl-reset" id="reset" type="button" data-reset>reset</button>

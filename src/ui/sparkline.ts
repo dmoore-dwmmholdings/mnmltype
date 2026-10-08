@@ -14,7 +14,15 @@ const svg = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string,
 
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 4);
 
-export type SparkOpts = { width?: number; height?: number; padTop?: number; dotRoom?: number; className?: string };
+export type SparkOpts = {
+  width?: number;
+  height?: number;
+  padTop?: number;
+  dotRoom?: number;
+  className?: string;
+  /** Track the rendered width so the curve fills any container without distortion. */
+  fluid?: boolean;
+};
 let instances = 0;
 
 export class Sparkline {
@@ -29,16 +37,20 @@ export class Sparkline {
   private scale = 60;
   private span = MIN_SPAN;
 
-  private readonly W: number;
+  private W: number;
   private readonly H: number;
-  private readonly PW: number; // plot width; leaves room for the dot
+  private PW: number; // plot width; leaves room for the dot
+  private readonly dotRoom: number;
+  private clipRect: SVGRectElement;
+  private base: SVGLineElement;
   private readonly PAD_TOP: number;
 
   constructor(opts: SparkOpts = {}) {
     const { width = 288, height = 64, padTop = 8, className = '' } = opts;
     this.W = width;
     this.H = height;
-    this.PW = width - (opts.dotRoom ?? 8);
+    this.dotRoom = opts.dotRoom ?? 8;
+    this.PW = width - this.dotRoom;
     this.PAD_TOP = padTop;
     const uid = ++instances;
     this.el = svg('svg', {
@@ -54,16 +66,31 @@ export class Sparkline {
       svg('stop', { offset: '1', class: 'spark-stop-b' }),
     );
     const clip = svg('clipPath', { id: `spark-clip-${uid}` });
-    clip.append(svg('rect', { x: '0', y: '-8', width: `${this.PW}`, height: `${this.H + 16}` }));
+    this.clipRect = svg('rect', { x: '0', y: '-8', width: `${this.PW}`, height: `${this.H + 16}` });
+    clip.append(this.clipRect);
     defs.append(grad, clip);
     const plot = svg('g', { 'clip-path': `url(#spark-clip-${uid})` });
     this.area = svg('path', { class: 'spark-area', fill: `url(#spark-fill-${uid})` });
     this.line = svg('path', { class: 'spark-line' });
     this.dot = svg('g', { class: 'spark-dot' });
     this.dot.append(svg('circle', { class: 'spark-halo', r: '6' }), svg('circle', { class: 'spark-core', r: '2.5' }));
-    const base = svg('line', { class: 'spark-base', x1: '0', x2: `${this.W}`, y1: `${this.H - 0.5}`, y2: `${this.H - 0.5}` });
+    const base = (this.base = svg('line', { class: 'spark-base', x1: '0', x2: `${this.W}`, y1: `${this.H - 0.5}`, y2: `${this.H - 0.5}` }));
     plot.append(this.area, this.line);
     this.el.append(defs, base, plot, this.dot);
+    this.draw(0);
+    if (opts.fluid) {
+      new ResizeObserver(([e]) => this.setWidth(e!.contentRect.width)).observe(this.el);
+    }
+  }
+
+  /** Resize the drawing to `width` px (viewBox units == CSS px, so nothing stretches). */
+  setWidth(width: number): void {
+    if (width < 40 || Math.abs(width - this.W) < 0.5) return;
+    this.W = width;
+    this.PW = width - this.dotRoom;
+    this.el.setAttribute('viewBox', `0 0 ${this.W} ${this.H}`);
+    this.clipRect.setAttribute('width', `${this.PW}`);
+    this.base.setAttribute('x2', `${this.W}`);
     this.draw(0);
   }
 

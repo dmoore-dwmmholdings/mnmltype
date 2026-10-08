@@ -109,7 +109,7 @@ function textSwap(): { el: HTMLElement; set: (v: string) => void } {
 }
 
 export class Panel {
-  readonly spark = new Sparkline({ width: 320, height: 56, padTop: 6 });
+  readonly spark = new Sparkline({ width: 600, height: 72, padTop: 8, fluid: true });
   readonly miniSpark = new Sparkline({ width: 96, height: 18, padTop: 2, dotRoom: 4, className: 'spark-mini' });
   private bound: Bound[] = [];
   private ring!: HTMLElement;
@@ -125,7 +125,7 @@ export class Panel {
     private summary: HTMLElement,
   ) {
     for (const groups of COLUMNS) {
-      const col = h('div', 'col');
+      const col = h('div', `col col-${groups[0]!.id}`);
       for (const g of groups) {
         const sec = h('section', `grp grp-${g.id}`);
         sec.setAttribute('aria-labelledby', `h-${g.id}`);
@@ -141,12 +141,15 @@ export class Panel {
           num.append(this.ring);
           const unit = h('span', 'hero-unit', 'wpm');
           unit.setAttribute('aria-hidden', 'true');
-          hero.append(num, unit);
+          const heroNum = h('div', 'hero-main');
+          heroNum.append(num, unit);
+          hero.append(heroNum);
           this.bindOdo(num, (s) => int(s.wpmNet), 'Net words per minute');
           sec.append(hero, this.spark.el);
         }
 
-        const dl = h('dl', 'rows');
+        // Speed's secondary values sit inline beside the hero number.
+        const dl = h('dl', g.id === 'speed' ? 'rows rows-inline' : 'rows');
         for (const row of g.rows) {
           const r = h('div', `row row-${row.key}`);
           const dd = h('dd', 'row-v');
@@ -157,7 +160,8 @@ export class Panel {
           else this.bindOdo(dd, row.fmt, '');
           if (row.key === 'accuracy') this.flashTargets.push(dd);
         }
-        sec.append(dl);
+        if (g.id === 'speed') sec.querySelector('.hero')!.append(dl);
+        else sec.append(dl);
         col.append(sec);
       }
       this.cols.push(col);

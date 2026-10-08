@@ -70,6 +70,10 @@ export class Odometer {
     this.set(DASH, true);
   }
 
+  get text(): string {
+    return this.value;
+  }
+
   set(next: string, instant = false): void {
     if (next === this.value) return;
     const prev = this.value;

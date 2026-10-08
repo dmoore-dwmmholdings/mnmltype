@@ -23,6 +23,8 @@ export class BlockCaret {
   constructor(
     private ta: HTMLTextAreaElement,
     private caret: HTMLElement,
+    /** Optional label that rides just under the caret (the live WPM tag). */
+    private tag?: HTMLElement,
   ) {
     this.mirror = document.createElement('div');
     this.mirror.className = 'caret-mirror';
@@ -94,6 +96,7 @@ export class BlockCaret {
     const start = ta.selectionStart;
     const end = ta.selectionEnd;
     caret.classList.toggle('is-hidden', start !== end);
+    this.tag?.classList.toggle('is-away', start !== end);
     if (start !== end) return;
 
     const text = ta.value;
@@ -109,9 +112,26 @@ export class BlockCaret {
     }
     const top = this.marker.offsetTop + (this.marker.offsetHeight - caret.offsetHeight) / 2;
     const left = this.marker.offsetLeft;
-    caret.style.transform = `translate(${left - ta.scrollLeft}px, ${top - ta.scrollTop}px)`;
-    // Hide when scrolled out of the textarea's visible box.
+    const x = left - ta.scrollLeft;
     const y = top - ta.scrollTop;
-    caret.classList.toggle('is-out', y < -caret.offsetHeight || y > ta.clientHeight);
+    caret.style.transform = `translate(${x}px, ${y}px)`;
+    // Hide when scrolled out of the textarea's visible box.
+    const out = y < -caret.offsetHeight || y > ta.clientHeight;
+    caret.classList.toggle('is-out', out);
+    if (this.tag) this.placeTag(x, y, out);
+  }
+
+  /** Under the caret; flips above it near the bottom edge and stays inside horizontally. */
+  private placeTag(x: number, y: number, out: boolean): void {
+    const tag = this.tag!;
+    const gap = 6;
+    const ch = this.caret.offsetHeight;
+    const tw = tag.offsetWidth;
+    const th = tag.offsetHeight;
+    let ty = y + ch + gap;
+    if (ty + th > this.ta.clientHeight - gap) ty = y - th - gap;
+    const tx = Math.max(0, Math.min(x - 2, this.ta.clientWidth - tw));
+    tag.style.transform = `translate(${tx}px, ${ty}px)`;
+    tag.classList.toggle('is-away', out);
   }
 }

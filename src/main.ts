@@ -23,9 +23,9 @@ const editor = $<HTMLTextAreaElement>('#editor');
 const statusline = $('#statusline');
 const drawer = $('#panel');
 const statsToggle = $<HTMLButtonElement>('#stats-toggle');
-const widthToggle = $<HTMLButtonElement>('#width-toggle');
-const widthMenu = $('#width-menu');
-const widthLabel = $('#width-label');
+const viewToggle = $<HTMLButtonElement>('#view-toggle');
+const viewMenu = $('#view-menu');
+const tag = $('.wpm-tag');
 const resetBtns = document.querySelectorAll<HTMLButtonElement>('[data-reset]');
 const scrim = $('#scrim');
 const notice = $('#notice');
@@ -37,7 +37,10 @@ const elapsedEls = document.querySelectorAll('.t-elapsed');
 
 const panel = new Panel($('#panel-body'), statusline, $('#summary'));
 const ambient = new Ambient($('.ambient'));
-const caret = new BlockCaret(editor, $('.caret'));
+const caret = new BlockCaret(editor, $('.caret'), tag);
+const tagValue = tag.querySelector('.wpm-tag-v')!;
+const TAG_MS = 500; // plain text, refreshed twice a second so it reads at a glance
+let lastTag = -Infinity;
 const phone = matchMedia('(max-width: 639px)');
 
 const LARGE_TEXT = 20_000;
@@ -90,6 +93,17 @@ function render(now: number): void {
   }
   ambient.setWpm(stats.wpmLive, stats.idle);
   animate();
+
+  // Live WPM tag under the caret.
+  const tagText = stats.wpmLive === null ? '' : String(Math.round(stats.wpmLive));
+  if (tagText !== tagValue.textContent && (now - lastTag >= TAG_MS || !tagText || !tagValue.textContent)) {
+    lastTag = now;
+    const resized = tagText.length !== (tagValue.textContent ?? '').length;
+    tagValue.textContent = tagText;
+    tag.classList.toggle('is-empty', !tagText);
+    if (resized) caret.schedule();
+  }
+  tag.classList.toggle('is-idle', stats.idle);
 
   const clock = `${fmtTime(stats.activeMs)}|${fmtTime(stats.elapsedMs)}`;
   if (clock !== lastClock) {
@@ -207,20 +221,19 @@ for (const b of resetBtns) b.addEventListener('click', requestReset);
 editor.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !e.isComposing) {
     e.preventDefault();
-    if (!widthMenu.hasAttribute('hidden')) return; // Esc closes the menu instead
+    if (!viewMenu.hasAttribute('hidden')) return; // Esc closes the menu instead
     requestReset();
   }
 });
 
-// ---- Column width ----------------------------------------------------------
+// ---- View menu: column width + WPM under the cursor -----------------------
 
 const WIDTHS = ['full', 'wide', 'narrow'] as const;
 type Width = (typeof WIDTHS)[number];
 
 function setWidth(w: Width, animateChange = true): void {
   app.dataset.width = w;
-  widthLabel.textContent = w;
-  for (const b of widthMenu.querySelectorAll<HTMLButtonElement>('[data-w]')) {
+  for (const b of viewMenu.querySelectorAll<HTMLButtonElement>('[data-w]')) {
     b.setAttribute('aria-pressed', String(b.dataset.w === w));
   }
   store.set('width', w);
@@ -229,13 +242,22 @@ function setWidth(w: Width, animateChange = true): void {
   }
 }
 
+function setCursorWpm(on: boolean): void {
+  app.classList.toggle('show-tag', on);
+  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-cursor-wpm]')) {
+    b.setAttribute('aria-pressed', String(on));
+  }
+  store.set('cursorWpm', on ? '1' : '0');
+  caret.schedule();
+}
+
 function setMenu(open: boolean, focusToggle = false, focusItem = true): void {
-  widthMenu.hidden = !open;
-  widthToggle.setAttribute('aria-expanded', String(open));
+  viewMenu.hidden = !open;
+  viewToggle.setAttribute('aria-expanded', String(open));
   if (open) {
-    if (focusItem) widthMenu.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus({ preventScroll: true });
+    if (focusItem) viewMenu.querySelector<HTMLButtonElement>('[data-w][aria-pressed="true"]')?.focus({ preventScroll: true });
     if (!reducedMotion()) {
-      widthMenu.animate(
+      viewMenu.animate(
         [
           { opacity: 0, transform: 'translateY(6px)' },
           { opacity: 1, transform: 'none' },
@@ -244,21 +266,24 @@ function setMenu(open: boolean, focusToggle = false, focusItem = true): void {
       );
     }
   } else if (focusToggle) {
-    widthToggle.focus({ preventScroll: true });
+    viewToggle.focus({ preventScroll: true });
   }
 }
 
 // Move focus into the menu only when it was opened from the keyboard (click detail 0).
-widthToggle.addEventListener('click', (e) => setMenu(widthMenu.hasAttribute('hidden'), false, e.detail === 0));
-widthMenu.addEventListener('click', (e) => {
+viewToggle.addEventListener('click', (e) => setMenu(viewMenu.hasAttribute('hidden'), false, e.detail === 0));
+viewMenu.addEventListener('click', (e) => {
   const b = (e.target as Element).closest<HTMLButtonElement>('[data-w]');
   if (!b) return;
   setWidth(b.dataset.w as Width);
   setMenu(false);
   editor.focus({ preventScroll: true });
 });
-widthMenu.addEventListener('keydown', (e) => {
-  const items = [...widthMenu.querySelectorAll<HTMLButtonElement>('[data-w]')];
+for (const b of document.querySelectorAll<HTMLButtonElement>('[data-cursor-wpm]')) {
+  b.addEventListener('click', () => setCursorWpm(b.getAttribute('aria-pressed') !== 'true'));
+}
+viewMenu.addEventListener('keydown', (e) => {
+  const items = [...viewMenu.querySelectorAll<HTMLButtonElement>('button')];
   const i = items.indexOf(document.activeElement as HTMLButtonElement);
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
@@ -266,11 +291,12 @@ widthMenu.addEventListener('keydown', (e) => {
   }
 });
 document.addEventListener('pointerdown', (e) => {
-  if (!widthMenu.hidden && !(e.target as Element).closest('.sl-menu-wrap')) setMenu(false);
+  if (!viewMenu.hidden && !(e.target as Element).closest('.sl-menu-wrap')) setMenu(false);
 });
 
 const saved = store.get('width');
 setWidth(WIDTHS.includes(saved as Width) ? (saved as Width) : 'full', false);
+setCursorWpm(store.get('cursorWpm') !== '0');
 
 // ---- Stats drawer (desktop/tablet) and bottom sheet (phone) ----------------
 
@@ -312,7 +338,7 @@ sheetClose.addEventListener('click', () => setDrawer(false));
 scrim.addEventListener('click', () => setDrawer(false));
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!widthMenu.hidden) {
+  if (!viewMenu.hidden) {
     e.preventDefault();
     setMenu(false, true);
   } else if (phone.matches && !drawer.hidden) {

@@ -120,12 +120,33 @@ test('block caret follows the text and width menu narrows the column', async ({ 
 
   const editorBox = async () => (await page.locator('#editor').boundingBox())!.width;
   const full = await editorBox();
-  await page.locator('#width-toggle').click();
-  await page.locator('#width-menu [data-w="narrow"]').click();
-  await expect(page.locator('#width-label')).toHaveText('narrow');
+  await page.locator('#view-toggle').click();
+  await page.locator('#view-menu [data-w="narrow"]').click();
+  const narrow = page.locator('#view-menu [data-w="narrow"]');
+  await expect(narrow).toHaveAttribute('aria-pressed', 'true');
   expect(await editorBox()).toBeLessThan(full);
   await page.reload();
-  await expect(page.locator('#width-label')).toHaveText('narrow');
+  await expect(narrow).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('live WPM tag follows the caret and can be switched off', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#editor')).toBeFocused();
+  const tag = page.locator('.wpm-tag');
+  await page.keyboard.type('the quick brown fox jumps over', { delay: 120 }); // ~3.6 s
+  await expect(tag).not.toHaveClass(/is-empty/);
+  await expect(tag).toBeVisible();
+  const caretBox = (await page.locator('.caret').boundingBox())!;
+  const tagBox = (await tag.boundingBox())!;
+  expect(tagBox.y).toBeGreaterThan(caretBox.y + caretBox.height - 1);
+  expect(Math.abs(tagBox.x - caretBox.x)).toBeLessThan(40);
+
+  await page.locator('#view-toggle').click();
+  const sw = page.locator('#view-menu [data-cursor-wpm]');
+  await expect(sw).toHaveAttribute('aria-pressed', 'true');
+  await sw.click();
+  await expect(sw).toHaveAttribute('aria-pressed', 'false');
+  await expect(tag).toBeHidden();
 });
 
 test('stats drawer toggles from the statusline', async ({ page }) => {
